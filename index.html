@@ -35,6 +35,15 @@
 <section class="admin-preview" id="admin-preview" aria-hidden="true"><div class="admin-bar"><strong>IRA SOUL · Admin Preview</strong><button id="close-admin">Close ×</button></div><div class="admin-content"><h2>Requests dashboard</h2><p class="admin-warning">Preview only — no secure login or cloud database is configured.</p><div class="stats"><div><small>Requests saved locally</small><b id="request-count">0</b></div><div><small>Activity catalogue</small><b>6</b></div><div><small>Storage</small><b>Browser only</b></div></div><div class="admin-table-wrap"><table><thead><tr><th>Name</th><th>Phone</th><th>Occasion</th><th>Activity</th><th>Budget</th><th>Date</th><th>Message</th></tr></thead><tbody id="admin-rows"></tbody></table></div><button class="btn btn-outline" id="export-csv">Export requests CSV</button><button class="btn btn-outline" id="clear-requests">Clear local demo data</button></div></section>
 <script src="script.js"></script>
 <script>
+/* HARD NAVIGATION FIX: activity detail cards must leave the homepage, not scroll */
+document.addEventListener('click',function(e){
+ const link=e.target.closest('a[href^="activity-"][href$=".html"]');
+ if(!link)return;
+ e.preventDefault();
+ e.stopPropagation();
+ e.stopImmediatePropagation();
+ window.location.href=link.getAttribute('href');
+},true);
 /* IRA SOUL navigation guard: ensure detail-page links navigate, never scroll in-page */
 document.addEventListener('click',function(e){
  const a=e.target.closest('a[href]');
