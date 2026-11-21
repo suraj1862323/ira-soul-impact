@@ -5,7 +5,7 @@ document.addEventListener('click',function(e){
  const a=e.target.closest('a[href]');
  if(!a)return;
  const href=a.getAttribute('href');
- if(href && /^(activity-|occasion-|step-|principle-)[^#]*\\.html$/i.test(href)){
+ if(href && /^(activity-|occasion-|step-|principle-)[^#]*\.html$/i.test(href)){
    e.preventDefault();
    e.stopImmediatePropagation();
    window.location.assign(href);
