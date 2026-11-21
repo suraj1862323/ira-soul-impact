@@ -15,3 +15,15 @@ function renderAdmin(){const requests=getRequests();$('#request-count').textCont
 $('#export-csv').addEventListener('click',()=>{const requests=getRequests();if(!requests.length){alert('No requests to export yet.');return;}const cols=['name','phone','occasion','activity','budget','date','message'];const esc=v=>'"'+String(v??'').replaceAll('"','""')+'"';const csv=[cols.join(','),...requests.map(r=>cols.map(k=>esc(r[k])).join(','))].join('\n');const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='ira-soul-demo-requests.csv';a.click();URL.revokeObjectURL(url);});
 $('#clear-requests').addEventListener('click',()=>{if(confirm('Clear all requests stored in this browser demo?')){saveRequests([]);renderAdmin();}});
 $('.menu-toggle').addEventListener('click',()=>{document.body.classList.toggle('menu-open')});document.querySelectorAll('.nav a').forEach(a=>a.addEventListener('click',()=>document.body.classList.remove('menu-open')));
+
+/* SITE-WIDE PAGE NAVIGATION: HTML page links must navigate, hash links may scroll. */
+document.addEventListener('click',function(e){
+  const a=e.target.closest('a[href]');
+  if(!a)return;
+  const href=a.getAttribute('href');
+  if(!href || href.startsWith('#') || a.target==='_blank' || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey)return;
+  if(/\.html(?:[?#].*)?$/i.test(href)){
+    e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+    window.location.assign(href);
+  }
+},true);
