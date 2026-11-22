@@ -4,34 +4,43 @@ const allowedStatuses = new Set(["Pending", "Contacted", "Completed"]);
 
 function corsHeaders(origin, env) {
   const allowed = env.SITE_ORIGIN || "https://irasoul.in";
-  return {
-    "Access-Control-Allow-Origin": origin === allowed ? origin : allowed,
-    "Access-Control-Allow-Credentials": "true",
+  const h = {
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
     "Vary": "Origin",
   };
+  if (origin === allowed) {
+    h["Access-Control-Allow-Origin"] = allowed;
+    h["Access-Control-Allow-Credentials"] = "true";
+  }
+  return h;
 }
 function json(data, status=200, headers={}) {
-  return new Response(JSON.stringify(data), {status,headers:{"Content-Type":"application/json; charset=utf-8",...headers}});
+  return new Response(JSON.stringify(data), {status,headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store",...headers}});
 }
 function b64u(bytes) {
   let s=""; for(const b of bytes) s+=String.fromCharCode(b);
-  return btoa(s).replace(/=/g,"").replace(/\+/g,"-").replace(/\//g,"_");
+  return btoa(s).replace(/=/g,"").replace(/\\+/g,"-").replace(/\\//g,"_");
 }
 function decodeB64u(s) { return atob(s.replace(/-/g,"+").replace(/_/g,"/")); }
+function safeEqual(a,b) {
+  let diff=a.length^b.length;
+  const n=Math.max(a.length,b.length);
+  for(let i=0;i<n;i++) diff|=(a.charCodeAt(i%Math.max(1,a.length))||0)^(b.charCodeAt(i%Math.max(1,b.length))||0);
+  return diff===0;
+}
 async function sign(payload, secret) {
   const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);
   return b64u(new Uint8Array(await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(payload))));
 }
 async function validSession(request, env) {
-  const cookie=request.headers.get("Cookie")||"";
-  const token=cookie.split(";").map(x=>x.trim()).find(x=>x.startsWith(COOKIE_NAME+"="))?.split("=")[1];
+  const cookieHeader=request.headers.get("Cookie")||"";
+  const token=cookieHeader.split(";").map(x=>x.trim()).find(x=>x.startsWith(COOKIE_NAME+"="))?.slice(COOKIE_NAME.length+1);
   if(!token)return false;
   const [payload,sig]=token.split(".");
-  if(!payload||!sig)return false;
+  if(!payload||!sig||!env.SESSION_SECRET)return false;
   const expected=await sign(payload,env.SESSION_SECRET);
-  if(expected!==sig)return false;
+  if(!safeEqual(expected,sig))return false;
   try { const data=JSON.parse(decodeB64u(payload)); return data.exp>Date.now()/1000; } catch { return false; }
 }
 function cookie(value, maxAge) {
@@ -39,12 +48,16 @@ function cookie(value, maxAge) {
 }
 async function handle(request, env) {
   const url=new URL(request.url), origin=request.headers.get("Origin")||"";
+  const expectedOrigin=env.SITE_ORIGIN||"https://irasoul.in";
   const headers=corsHeaders(origin,env);
+  if(origin && origin!==expectedOrigin)return json({error:"Origin not allowed"},403);
+  if(["POST","PATCH","DELETE"].includes(request.method) && origin!==expectedOrigin)return json({error:"Origin required"},403);
   if(request.method==="OPTIONS")return new Response(null,{status:204,headers});
   if(url.pathname==="/api/health")return json({ok:true});
   if(url.pathname==="/api/admin/login"&&request.method==="POST"){
+    if(!env.ADMIN_PASSWORD||!env.SESSION_SECRET||env.SESSION_SECRET.length<32)return json({error:"Admin secrets are not configured"},503,headers);
     const body=await request.json().catch(()=>null);
-    if(!body||typeof body.password!=="string"||!env.ADMIN_PASSWORD||body.password!==env.ADMIN_PASSWORD)return json({error:"Invalid password"},401,headers);
+    if(!body||typeof body.password!=="string"||!safeEqual(body.password,env.ADMIN_PASSWORD))return json({error:"Invalid password"},401,headers);
     const payload=b64u(new TextEncoder().encode(JSON.stringify({exp:Math.floor(Date.now()/1000)+SESSION_TTL})));
     const token=payload+"."+await sign(payload,env.SESSION_SECRET);
     return json({ok:true},200,{...headers,"Set-Cookie":cookie(token,SESSION_TTL)});
@@ -56,7 +69,7 @@ async function handle(request, env) {
       const {results=[]}=await env.DB.prepare("SELECT * FROM enquiries ORDER BY created_at DESC").all();
       return json({requests:results},200,headers);
     }
-    const match=url.pathname.match(/^\/api\/admin\/requests\/(\d+)$/);
+    const match=url.pathname.match(/^\\/api\\/admin\\/requests\\/(\\d+)$/);
     if(match&&request.method==="PATCH"){
       const body=await request.json().catch(()=>null);
       if(!body||!allowedStatuses.has(body.status))return json({error:"Invalid status"},400,headers);
@@ -71,6 +84,7 @@ async function handle(request, env) {
   if(url.pathname==="/api/requests"&&request.method==="POST"){
     const body=await request.json().catch(()=>null);
     if(!body||!body.name||!body.phone)return json({error:"Name and phone are required"},400,headers);
+    if(JSON.stringify(body).length>8000)return json({error:"Request too large"},413,headers);
     const name=String(body.name).trim().slice(0,120), phone=String(body.phone).trim().slice(0,30);
     const occasion=String(body.occasion||"").slice(0,120),activity=String(body.activity||"").slice(0,120);
     const budget=String(body.budget||"").slice(0,100),date=String(body.date||"").slice(0,30),message=String(body.message||"").slice(0,2000);
