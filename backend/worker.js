@@ -20,9 +20,9 @@ function json(data, status=200, headers={}) {
 }
 function b64u(bytes) {
   let s=""; for(const b of bytes) s+=String.fromCharCode(b);
-  return btoa(s).replace(/=/g,"").replace(/\\+/g,"-").replace(/\\//g,"_");
+  return btoa(s).replaceAll("=","").replaceAll("+","-").replaceAll("/","_");
 }
-function decodeB64u(s) { return atob(s.replace(/-/g,"+").replace(/_/g,"/")); }
+function decodeB64u(s) { const raw=s.replaceAll("-","+").replaceAll("_","/"); return atob(raw.padEnd(Math.ceil(raw.length/4)*4,"=")); }
 function safeEqual(a,b) {
   let diff=a.length^b.length;
   const n=Math.max(a.length,b.length);
