@@ -1,19 +1,27 @@
-const STORE_KEY='iraSoulDemoRequests';
 const $=s=>document.querySelector(s);
 const form=$('#request-form');
 const message=$('#form-message');
-const getRequests=()=>{try{return JSON.parse(localStorage.getItem(STORE_KEY)||'[]')}catch{return[]}};
-const saveRequests=r=>localStorage.setItem(STORE_KEY,JSON.stringify(r));
 $('#year').textContent=new Date().getFullYear();
 const dateInput=form.querySelector('[name="date"]'); dateInput.min=new Date().toISOString().split('T')[0];
-form.addEventListener('submit',e=>{e.preventDefault();const data=Object.fromEntries(new FormData(form).entries());data.id=Date.now();data.createdAt=new Date().toLocaleDateString('en-IN');const all=getRequests();all.unshift(data);saveRequests(all);message.textContent='Thank you! Your request has been saved in this demo browser. Live enquiry delivery will be enabled before launch.';form.reset();});
+form.addEventListener('submit',async e=>{
+  e.preventDefault();
+  const submit=form.querySelector('[type="submit"]');
+  const data=Object.fromEntries(new FormData(form).entries());
+  message.textContent='Submitting your request…';
+  submit.disabled=true;
+  try {
+    const response=await fetch('/api/requests',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok) throw new Error(result.error||'Submission failed');
+    message.textContent='Thank you! Your enquiry has been received. Our team will contact you soon.';
+    form.reset();
+  } catch(err) {
+    message.textContent='We could not send your request right now. Please call or WhatsApp 7290990543.';
+  } finally { submit.disabled=false; }
+});
 /* Only form-intent links should populate the enquiry form. Detail links navigate normally. */
 const activityLinks=document.querySelectorAll('[data-activity][href="#plan"]');
 activityLinks.forEach(a=>a.addEventListener('click',()=>{const sel=form.querySelector('[name="activity"]');sel.value=a.dataset.activity;setTimeout(()=>form.querySelector('[name="name"]').focus(),250)}));
-const admin=$('#admin-preview');const adminLink=$('#admin-link');function showAdmin(){admin.classList.add('open');admin.setAttribute('aria-hidden','false');renderAdmin();}function hideAdmin(){admin.classList.remove('open');admin.setAttribute('aria-hidden','true');location.hash='';}adminLink.addEventListener('click',e=>{e.preventDefault();showAdmin()});$('#close-admin').addEventListener('click',hideAdmin);if(location.hash==='#admin')showAdmin();
-function renderAdmin(){const requests=getRequests();$('#request-count').textContent=requests.length;const tbody=$('#admin-rows');tbody.innerHTML='';if(!requests.length){tbody.innerHTML='<tr><td class="empty-row" colspan="7">No demo requests yet. Submit the form on the website to see them here.</td></tr>';return;}requests.forEach(r=>{const tr=document.createElement('tr');[r.name,r.phone,r.occasion,r.activity,r.budget,r.date||'—',r.message||'—'].forEach(value=>{const td=document.createElement('td');td.textContent=value||'—';tr.appendChild(td)});tbody.appendChild(tr)});}
-$('#export-csv').addEventListener('click',()=>{const requests=getRequests();if(!requests.length){alert('No requests to export yet.');return;}const cols=['name','phone','occasion','activity','budget','date','message'];const esc=v=>'"'+String(v??'').replaceAll('"','""')+'"';const csv=[cols.join(','),...requests.map(r=>cols.map(k=>esc(r[k])).join(','))].join('\n');const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='ira-soul-demo-requests.csv';a.click();URL.revokeObjectURL(url);});
-$('#clear-requests').addEventListener('click',()=>{if(confirm('Clear all requests stored in this browser demo?')){saveRequests([]);renderAdmin();}});
 $('.menu-toggle').addEventListener('click',()=>{document.body.classList.toggle('menu-open')});document.querySelectorAll('.nav a').forEach(a=>a.addEventListener('click',()=>document.body.classList.remove('menu-open')));
 
 /* SITE-WIDE PAGE NAVIGATION: HTML page links must navigate, hash links may scroll. */
