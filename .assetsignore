@@ -1,0 +1,6 @@
+backend/
+README.md
+wrangler.toml
+.assetsignore
+.git/
+.gitignore
